@@ -1,0 +1,8 @@
+{
+  "label": "Kubernetes - Basics",
+  "position": 2,
+  "link": {
+    "type": "generated-index",
+    "description": "A walkthrough of the basic Kubernetes building blocks that makes up this project."
+  }
+}

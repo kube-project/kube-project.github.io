@@ -1,0 +1,28 @@
+---
+sidebar_position: 1
+---
+
+# Kube Project
+
+Welcome to the **Kube Project**. This project aims to alleviate the pain of setting up a Kubernetes project with a lot
+of moving parts.
+
+The project includes a [Tilt](https://tilt.dev) file that can spin up the entire stack from zero without you having
+to do anything. From there, you can explore the cluster components, which, for simplicities sake, aren't that many.
+
+To start up the whole project, clone all the repositories next to each other ( except for the documentation ).
+
+Then run from the [tilt](https://github.com/kube-project/tilt) project:
+
+```
+tilt up
+```
+
+And that's it. In a couple of moments, you should see something like this:
+
+![kube-cluster](/img/kube-cluster.png)
+
+In the following sections and guides, we will break down what you see. How the components all work together.
+How each element communicates using a different format. And how those services are set up.
+
+But first, let's take a look at the basic Kubernetes building blocks that make up this whole collection.
