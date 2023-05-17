@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkkube_project_github_io=self.webpackChunkkube_project_github_io||[]).push([[205],{4863:u=>{u.exports=JSON.parse('{"label":"docusaurus","permalink":"/blog/tags/docusaurus","allTagsPath":"/blog/tags","count":4}')}}]);
