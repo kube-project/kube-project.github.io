@@ -8,12 +8,134 @@ Let's take a look at what components this project consists of.
 
 ## Database
 
+In all distributed applications there has to be a sync point between the processed data. In this application that point
+is the database. All of the components use transactions to stay up-to-date with all changes and to prevent data races.
+
+The database could be sharded and distributed, but we won't cover that in this guide.
+
 ## NSQ
+
+[NSQ](https://github.com/nsqio/go-nsq) was choosen as a message broker between two of the components to decouple the
+workload handling. Basically, one of the components deals with processing incoming images and then handles over image
+ids through the queue to the next component whihc will deal with the image recognition.
+
+The queue is pretty sturdy, handles multiple processors and produces, can be distributed and handles re-sending unprocessed
+entries.
 
 ## Receiver
 
+The [receiver service](https://github.com/kube-project/receiver-service) is the entry point into the whole process. It's an API which receives a request in the following format:
+
+~~~bash
+curl -d '{"path":"/unknown_images/unknown0001.jpg"}' http://127.0.0.1:8000/image/post
+~~~
+
+Once that request is received the following process is kicked off:
+
+- write the path in to the database and create an entry in `Pending` state
+- if the write is successful send the image ID to NSQ
+
+It can process multiple images at once as well.
+
 ## Image Processor
+
+Here is where the excitement begins. When Image Processor first runs it creates two Go routines. These are...
+
+### Consume
+
+This is an NSQ consumer. It has three integral jobs. Firstly, it listens for messages on the queue. Secondly, when there
+is a message, it appends the received ID to a thread safe slice of IDs that the second routine processes. And lastly,
+it signals the second routine that there is work to be do with a mediator.
+
+### ProcessImages
+
+This routine processes an ID that it gets from the consumer. The processing of a single ID can be seen in the following
+linear steps:
+
+* Establish a gRPC connection to the Face Recognition service (explained under Face Recognition)
+* Retrieve the image record from the database
+* Setup two functions for the [Circuit Breaker](#circuit-breaker)
+  * Function 1: The main function which runs  the RPC method call
+  * Function 2: A health check for the Ping of the circuit breaker
+* Call Function 1 which sends the path of the image to the face recognition service. This path should be accessible by
+the face recognition service. Preferably something shared like an NFS
+* If this call fails, update the image record as FAILED PROCESSING
+* If it succeeds, an image name should come back which corresponds to a person in the db. It runs a joined SQL query
+which gets the corresponding person's ID
+* Update the Image record in the database with PROCESSED status and the ID of the person that image was identified as
+
+This service can be replicated. In other words, more than one can run at the same time.
+
+:::tip
+This whole process could be made even more resilient by batch processing several IDs received from the consumer service.
+Right now it has a 1 length buffered channel only.
+:::
+
+### Circuit Breaker
+
+A system in which replicating resources requires little to no effort, there still can be cases where, for example, the
+network goes down, or there are communication problems of any kind between two services. I like to implement a little
+circuit breaker around the gRPC calls for fun.
+
+The code is located [here](https://github.com/kube-project/image-processor-service/blob/c23655eaec2efce139be7f29603c8a767999a29f/pkg/providers/circuitbreaker/circuitbreaker.go).
+
+This is how it works:
+
+![kube circuit](/img/kube_circuit1.png)
+
+Once there are 5 unsuccessful calls to the service, the circuit breaker activates, not allowing any more calls to go
+through. After a configured amount of time, it will send a Ping call to the service to see if it's back up. If that
+still errors out, it will increase the timeout. If not, it opens the circuit, allowing traffic to proceed.
 
 ## Face Recognition Service
 
+## Face Recognition
+
+Here is where the identification happens. I decided to make this a gRPC based service for the  sole purpose of its
+flexibility. I started writing it in Go but decided that a Python implementation would be much sorter. In fact,
+excluding the gRPC code, the recognition part is approximately 7 lines of Python code. I'm using this fantastic library
+which contains all the C bindings to dlib. [Face Recognition](https://github.com/ageitgey/face_recognition). Having an
+API contract here means that I can change the implementation anytime as long as it adheres to the contract.
+
+Please note that there exist a great Go library OpenCV. I was about to use it but they had yet to write the C bindings
+for that part of OpenCV. It's called [GoCV](https://gocv.io/). Check them out! They have some pretty amazing things,
+like real-time camera feed processing that only needs a couple of lines of code.
+
+:::information
+There is also now [Kagami/go-face](https://github.com/Kagami/go-face) which comes pretty close, but has been discontinued.
+
+There is also [pigo](https://github.com/esimov/pigo) but that is for face _detection_.
+:::
+
+The python library is simple in nature. Have a set of images of people you know. I have a folder with a couple of images
+named, `hannibal_1.jpg, hannibal_2.jpg, gergely_1.jpg, john_doe.jpg`. In the database I have two tables named,
+`person, person_images`. They look like this:
+
+~~~bash
++----+----------+
+| id | name     |
++----+----------+
+|  1 | Gergely  |
+|  2 | John Doe |
+|  3 | Hannibal |
++----+----------+
++----+----------------+-----------+
+| id | image_name     | person_id |
++----+----------------+-----------+
+|  1 | hannibal_1.jpg |         3 |
+|  2 | hannibal_2.jpg |         3 |
++----+----------------+-----------+
+~~~
+
+The face recognition library returns the name of the image from the known people which matches the person on the
+unknown image. After that, a simple joined query -like this- will return the person in question.
+
+~~~sql
+select person.name, person.id from person inner join person_images as pi on person.id = pi.person_id where image_name = 'hannibal_2.jpg';
+~~~
+
+The gRPC call returns the ID of the person which is then used to update the image's `person` column.
+
 ## Frontend
+
+This is only a simple table view with Go's own html/template used to render a list of images.

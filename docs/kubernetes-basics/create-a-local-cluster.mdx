@@ -1,5 +1,5 @@
 ---
-sidebar_position: 1
+sidebar_position: 2
 ---
 
 # Create a Local Cluster
@@ -14,3 +14,85 @@ A local cluster will be different from a cloud based cluster in many ways. Load 
 and routing will be different. You don't have to concern yourself with that for now. Just remember, this here, we are
 trying to get to know the building blocks.
 :::
+
+To create a local cluster, we will use [kind](https://kind.sigs.k8s.io/). Kind is a convenient way to launch all sorts
+of local clusters. It's quite resilient but it is _NOT_ intended for production use. Long lived kind clusters tend to
+deteriorate. It's using docker containers to simulate nodes.
+
+:::important
+This project has a kind configuration that it uses, we'll get to that later.
+:::
+
+Let's explore a cluster.
+
+Run:
+
+```
+kind create cluster
+```
+
+What you should see looks something like this:
+
+```
+kind create cluster
+Creating cluster "kind" ...
+ ✓ Ensuring node image (kindest/node:v1.27.1) 🖼
+ ✓ Preparing nodes 📦
+ ✓ Writing configuration 📜
+ ✓ Starting control-plane 🕹️
+ ✓ Installing CNI 🔌
+ ✓ Installing StorageClass 💾
+Set kubectl context to "kind-kind"
+You can now use your cluster with:
+
+kubectl cluster-info --context kind-kind
+
+Thanks for using kind! 😊
+```
+
+`kubectl` is your basic tool to explore clusters. A general move in every new environment is to immediately alias it to
+just `k`. `alias k='kubectl'`. This will save you a LOT of typing.
+
+Your first command will be: `k get pods -A`.
+
+The output looks something like this:
+
+```
+k get pods -A
+
+NAMESPACE            NAME                                         READY   STATUS    RESTARTS   AGE
+kube-system          coredns-5d78c9869d-rlbx8                     1/1     Running   0          3m9s
+kube-system          coredns-5d78c9869d-vww68                     1/1     Running   0          3m9s
+kube-system          etcd-kind-control-plane                      1/1     Running   0          3m22s
+kube-system          kindnet-b2zwz                                1/1     Running   0          3m9s
+kube-system          kube-apiserver-kind-control-plane            1/1     Running   0          3m22s
+kube-system          kube-controller-manager-kind-control-plane   1/1     Running   0          3m24s
+kube-system          kube-proxy-bgg6q                             1/1     Running   0          3m9s
+kube-system          kube-scheduler-kind-control-plane            1/1     Running   0          3m22s
+local-path-storage   local-path-provisioner-6bc4bddd6b-m95zz      1/1     Running   0          3m9s
+```
+
+You see the main building blocks of Kubernetes here. These are [pods](https://kubernetes.io/docs/concepts/workloads/pods/). The linked document has a nice explanation
+about what pods are. TL;DR would be that they are just containers or Linux namespaces. They can contain multiple containers,
+however, which makes them a little bit more than just a 1:1 with a single application. A single pod could run, for example,
+an application and the monitoring stack for that application inside the pod. Or a network router.
+
+That said, you should usally restrict yourself from running too many containers in a single Pod. Mostly because they eat
+resources and increase the need of a single Pod.
+
+:::tip
+The keen observe notices the `-A` in that command. For now, you can ignore that. It means to list all pods in all
+namespaces.
+:::
+
+Let's take a look at the [nodes](https://kubernetes.io/docs/concepts/architecture/nodes/) next:
+
+```
+k get nodes
+
+NAME                 STATUS   ROLES           AGE   VERSION
+kind-control-plane   Ready    control-plane   9m    v1.27.1
+```
+
+We have a single node right now. A node is basically a worker machine. Pods are scheduled in machines. We'll talk about
+how that happens later on. Scheduling is not an easy subject.
