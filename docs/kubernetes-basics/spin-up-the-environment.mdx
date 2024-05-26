@@ -3,3 +3,52 @@ sidebar_position: 3
 ---
 
 # Spin up the environment
+
+First, clone the actual Kube Project repository here: https://github.com/kube-project/kube-project.
+
+This repository contains all of the services as a monorepo.
+
+Let's run the cluster now. This project uses a kind configuration to create a specific cluster.
+
+Here is the configuration:
+
+~~~yaml
+# three node (two workers) cluster config
+kind: Cluster
+name: kube-facerecog-test-cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+    extraMounts:
+      - hostPath: /Users/skarlso/temp/known_people
+        containerPath: /known_people
+      - hostPath: /Users/skarlso/temp/unknown_people
+        containerPath: /unknown_people
+  - role: worker
+    extraMounts:
+      - hostPath: /Users/skarlso/temp/known_people
+        containerPath: /known_people
+      - hostPath: /Users/skarlso/temp/unknown_people
+        containerPath: /unknown_people
+~~~
+
+The design here is that the face-recognition part has access to a volumn which contains
+the images it needs to work with. These images are either on an NFS volumn, or some other
+storage media. For testing purposes, these images will be located on your own machine.
+
+For this to work, Kind needs access to these folders. Please edit the `hostPath` locations
+to a folder on your disk that you'll need to create.
+
+One for `known_people` and the other for `unknown_people`. The `unknown_people` will contain
+new images that the face recognition service will need to compute.
+
+Let's spin up the cluster. To use kind with a config, run the following command:
+
+~~~bash
+kind create cluster --config kind_test_cluster.yaml
+~~~
+
+Once executed, we should see the kind pods running and the nodes healthy.
+
+We can now run `tilt up` to start all of the services.
