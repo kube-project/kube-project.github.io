@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkkube_project_github_io=self.webpackChunkkube_project_github_io||[]).push([[616],{5205:e=>{e.exports=JSON.parse('{"tags":[{"label":"welcome","permalink":"/blog/tags/welcome","count":1}]}')}}]);

@@ -2,7 +2,7 @@
 <rss version="2.0">
     <channel>
         <title>Kube Project Blog</title>
-        <link>https://kubeproject.app/blog</link>
+        <link>https://kube-project.github.io/blog</link>
         <description>Kube Project Blog</description>
         <lastBuildDate>Fri, 19 May 2023 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
@@ -10,8 +10,8 @@
         <language>en</language>
         <item>
             <title><![CDATA[Welcome]]></title>
-            <link>https://kubeproject.app/blog/welcome</link>
-            <guid>https://kubeproject.app/blog/welcome</guid>
+            <link>https://kube-project.github.io/blog/welcome</link>
+            <guid>https://kube-project.github.io/blog/welcome</guid>
             <pubDate>Fri, 19 May 2023 00:00:00 GMT</pubDate>
             <category>welcome</category>
         </item>
