@@ -3,3 +3,168 @@ sidebar_position: 4
 ---
 
 # What am I seeing?
+
+After `tilt up` successfully finished starting all the controllers, you should see something like this:
+
+~~~
+ k get pods -A
+NAMESPACE            NAME                                                                READY   STATUS    RESTARTS   AGE
+default              face-recog-d9476dbdc-x7hjz                                          1/1     Running   0          7m7s
+default              frontend-8d9f448d5-gvdpf                                            1/1     Running   0          6m23s
+default              image-processor-deployment-6db7754485-4rt27                         1/1     Running   0          6m24s
+default              mysql-6579bd84bc-z8qxc                                              1/1     Running   0          7m8s
+default              nsqd-0                                                              1/1     Running   0          7m8s
+default              nsqlookup-677f8b9dfb-qwct4                                          1/1     Running   0          7m8s
+default              receiver-deployment-7fcf6f77d7-5rx6r                                1/1     Running   0          6m24s
+kube-system          coredns-558bd4d5db-25czq                                            1/1     Running   0          11m
+kube-system          coredns-558bd4d5db-85nwq                                            1/1     Running   0          11m
+kube-system          etcd-kube-facerecog-test-cluster-control-plane                      1/1     Running   0          11m
+kube-system          kindnet-h9x7x                                                       1/1     Running   0          11m
+kube-system          kindnet-rmg75                                                       1/1     Running   0          11m
+kube-system          kindnet-z9fj9                                                       1/1     Running   0          11m
+kube-system          kube-apiserver-kube-facerecog-test-cluster-control-plane            1/1     Running   0          12m
+kube-system          kube-controller-manager-kube-facerecog-test-cluster-control-plane   1/1     Running   0          11m
+kube-system          kube-proxy-dffdm                                                    1/1     Running   0          11m
+kube-system          kube-proxy-hbwss                                                    1/1     Running   0          11m
+kube-system          kube-proxy-rlbd7                                                    1/1     Running   0          11m
+kube-system          kube-scheduler-kube-facerecog-test-cluster-control-plane            1/1     Running   0          11m
+local-path-storage   local-path-provisioner-547f784dff-87xbk                             1/1     Running   0          11m
+~~~
+
+Tilt exposed two things for you. One, is the [frontend](../project-basics/high-level-components.mdx#frontend) and the other is the [receiver](../project-basics/high-level-components.mdx#receiver).
+
+Let's take a look at the frontend. Without anything in the database, we should see
+an empty view like this:
+
+![kube-cluster](/img/empty-frontend.png)
+
+It will change once we put the receiver to work. Namly, we send it an image to
+process. Tilt uses port-forwarding to achieve this. If we would to do this manually
+you could run something like this: `kubectl port-forward deployment/frontend 8081:8081`. Which forwards
+the deployment, or perhaps a service like this `kubectl port-forward service/frontend 8081:8081`.
+
+Your volume should contain a couple known images and some unknown images. Right now, the database
+is primed using this file here: https://github.com/kube-project/kube-project/blob/main/requirements/requirements.yaml
+
+This will create a ConfigMap in the system from which the database is seeded.
+
+Alter these values if you wish to insert different named people and images:
+
+~~~sql
+    insert into person_images (image_name, person_id) values ('hannibal_1.jpg', 1);
+    insert into person_images (image_name, person_id) values ('hannibal_2.jpg', 1);
+    insert into person_images (image_name, person_id) values ('skarlso_1.jpg', 2);
+    insert into person_images (image_name, person_id) values ('skarlso_2.jpg', 2);
+    insert into person_images (image_name, person_id) values ('john_doe_1.jpg', 3);
+    insert into person_images (image_name, person_id) values ('gergely_01.jpg', 4);
+~~~
+
+To mock about in the database, you need to create a shell on the database pod and run some mysql
+commands directly.
+
+~~~
+# From the above pod-list we would like to execute a sql shell in the mysql pod.
+kubectl exec -it mysql-6579bd84bc-bpc99 -- mysql -p
+Enter password:
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 9
+Server version: 8.0.37 MySQL Community Server - GPL
+
+Copyright (c) 2000, 2024, Oracle and/or its affiliates.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql>
+~~~
+
+The password is `password123`. Now, we can run some sql commands, like show databases, select
+one and then select some values.
+
+~~~
+mysql> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| kube               |
+| mysql              |
+| performance_schema |
+| sys                |
++--------------------+
+5 rows in set (0.01 sec)
+
+mysql> use kube;
+Reading table information for completion of table and column names
+You can turn off this feature to get a quicker startup with -A
+
+Database changed
+mysql> show tables;
++----------------+
+| Tables_in_kube |
++----------------+
+| images         |
+| person         |
+| person_images  |
++----------------+
+3 rows in set (0.00 sec)
+
+mysql> select * from person;
++----+----------+
+| id | name     |
++----+----------+
+|  1 | Hannibal |
+|  2 | Skarlso  |
+|  3 | John Doe |
+|  4 | Gergely  |
++----+----------+
+4 rows in set (0.00 sec)
+
+mysql>
+~~~
+
+Now, let's send something to the receiver! To do that, use the following CURL format.
+
+~~~
+curl -XPOST -d '{"path": "/unknown_people/unknown_05.jpg"}' http://localhost:8000/image/post
+got path: {Path:/unknown_people/unknown_05.jpg}
+got paths: {Paths:[{Path:/unknown_people/unknown_05.jpg}]} with length: 1
+image saved with id: 1
+image sent to nsq
+~~~
+
+After this was successfully sent, we should see an entry in the database:
+
+~~~
+mysql> select * from images;
++----+--------------------------------+--------+--------+
+| id | path                           | person | status |
++----+--------------------------------+--------+--------+
+|  1 | /unknown_people/unknown_05.jpg |     -1 |      0 |
++----+--------------------------------+--------+--------+
+1 row in set (0.00 sec)
+~~~
+
+Great! Let's check the frontend! We should see a single row in Pending. If
+we weren't quick enough, that row would say processed and the person that matched
+the person on the image, if any.
+
+Pending:
+
+![pending](/img/frontend-processing.png)
+
+Processed:
+
+![pending](/img/frontend-processed.png)
+
+:::important
+If nothing happens or you got an error for whatever reason, try looking at the pod logs
+with the `logs` command like this:
+
+~~~
+kubectl logs receiver-deployment-7fcf6f77d7-5rx6r
+~~~
+:::

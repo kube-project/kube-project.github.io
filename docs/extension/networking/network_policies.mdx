@@ -4,3 +4,48 @@ sidebar_position: 1
 
 # Extending the deployments with network policies
 
+A [Network Policy](https://kubernetes.io/docs/concepts/services-networking/network-policies/) can regulate what can talk to what.
+
+Simply put, if you don't want your database to talk to anything other than a specific
+service, you can use a network policy like this:
+
+~~~yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-network-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: db
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: my-app
+    ports:
+    - protocol: TCP
+      port: 5432
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: my-app
+    ports:
+    - protocol: TCP
+      port: 5432
+~~~
+
+to restrict traffict to the database.
+
+:::important
+A NetworkPolicy without a Network plugin in the cluster will not do anything.
+
+A networking plugin is a CNI like calico.
+
+Kind has its own CNI implementation using `kindnet`.
+:::
